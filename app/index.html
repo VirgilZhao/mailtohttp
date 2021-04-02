@@ -1,11 +1,164 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Go embed Example</title>
-        <script src="/static/main.js"></script>
-    </head>
-    <body>
-        <h1>Hello world!</h1>
-    </body>
+<head>
+    <meta charset="UTF-8">
+    <title>EmailToHttp</title>
+    <!-- import CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <style>
+        .el-header, .el-footer {
+            background-color: #B3C0D1;
+            color: #333;
+            text-align: center;
+            line-height: 60px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <el-container>
+            <el-header>
+                <span style="font-size: 32px;font-weight: bold;">Mail To Http Configuration</span>
+            </el-header>
+            <el-main>
+                <div v-if="!configDivShow" id="passwdidv">
+                    <el-form :inline="true" style="text-align: center;">
+                        <el-form-item label="Enter Password">
+                            <el-input v-model="passwordText" show-password></el-input>
+                        </el-form-item>
+                        <el-form-item>
+                            <el-button type="primary" @click="login">Login</el-button>
+                        </el-form-item>
+                    </el-form>
+                </div>
+                <div v-else id="configDiv" style="width:600px;margin:0 auto;">
+                    <el-card>
+                        <div slot="header">
+                            <span>Email Settings</span>
+                        </div>
+                        <el-form label-width="120px" label-position="left">
+                            <el-form-item label="IMAP Address">
+                                <el-input v-model="emailSettings.imapAddress" placeholder="imap.gmail.com"></el-input>
+                            </el-form-item>
+                            <el-form-item label="IMAP Port">
+                                <el-input v-model="emailSettings.imapPort" placeholder="993"></el-input>
+                            </el-form-item>
+                            <el-form-item label="Email">
+                                <el-input v-model="emailSettings.email" placeholder="test@test.com"></el-input>
+                            </el-form-item>
+                            <el-form-item label="Password">
+                                <el-input v-model="emailSettings.password" show-password></el-input>
+                            </el-form-item>
+                            <el-form-item label="Folder">
+                                <el-input v-model="emailSettings.folder"></el-input>
+                            </el-form-item>
+                        </el-form>
+                    </el-card>
+                    <div style="width:100%;height:10px;"></div>
+                    <el-card>
+                        <div slot="header">
+                            <span>Content Pattern</span>
+                            <el-button style="float: right; padding: 3px 0" type="text" @click="addPattern">Add Pattern</el-button>
+                        </div>
+                        <template v-for="(item, index) in contentPatterns">
+                            <el-card>
+                                <div slot="header">
+                                    <el-button style="float: right; padding:0 0;" type="text" @click="deletePattern(index)">Delete</el-button>
+                                </div>
+                                <el-form label-width="80px">
+                                    <el-form-item label="Param">
+                                        <el-input v-model="item.param"></el-input>
+                                    </el-form-item>
+                                    <el-form-item label="Regex">
+                                        <el-input v-model="item.regex"></el-input>
+                                    </el-form-item>
+                                </el-form>
+                            </el-card>
+                        </template>
+                    </el-card>
+                    <div style="width:100%;height:10px;"></div>
+                    <el-card>
+                        <div slot="header">
+                            <span>HTTP Settings</span>
+                        </div>
+                        <el-form label-width="120px" label-position="left">
+                            <el-form-item label="Callback URL">
+                                <el-input v-model="callbackUrl" placeholder="https://test.com/callback"></el-input>
+                            </el-form-item>
+                        </el-form>
+                    </el-card>
+                    <div style="width:100%;height:20px;"></div>
+                    <el-row>
+                        <el-col :span="12">
+                            <el-button type="primary" @click="startService">Start Service</el-button>
+                        </el-col>
+                        <el-col :span="12" style="text-align: right;">
+                            <el-button type="danger">Stop Service</el-button>
+                        </el-col>
+                    </el-row>
+                </div>
+            </el-main>
+        </el-container>
+    </div>
+</body>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<!-- import Vue before Element -->
+<script src="https://unpkg.com/vue/dist/vue.js"></script>
+<!-- import JavaScript -->
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data: function() {
+            return { 
+                passwordText: '' ,
+                configDivShow: false,
+                emailSettings: {
+                    imapAddress: '',
+                    imapPort: 993,
+                    email: '',
+                    password: '',
+                    folder: ''
+                },
+                contentPatterns: [],
+                callbackUrl: '',
+                status: 'stopped'
+            }
+        },
+        computed: {
+        },
+        methods: {
+            login() {
+                var self = this
+                var url = '/api/password/' + this.passwordText
+                axios.get(url).then(function(resp){
+                    console.log(resp)
+                    if(resp.data === "ok"){
+                        console.log("111")
+                        self.configDivShow = true
+                    }
+                });
+            },
+            addPattern() {
+                this.contentPatterns.push({
+                    param: '',
+                    regex:''
+                })
+            },
+            deletePattern(index) {
+                this.contentPatterns.splice(index, 1)
+            },
+            startService(){
+                var body = {
+                    emailSettings: this.emailSettings,
+                    contentPatterns: this.contentPatterns,
+                    CallbackUrl: this.callbackUrl
+                }
+                axios.post('/api/service/start', body).then(function(resp){
+                    console.log(resp)
+                })
+            }
+        },
+    })
+</script>
 </html>
