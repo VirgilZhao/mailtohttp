@@ -18,3 +18,8 @@ type ServiceConfig struct {
 	ContentPatterns []ServiceContentPattern `json:"contentPatterns"`
 	CallbackUrl     string                  `json:"callbackUrl"`
 }
+
+type LoginResponse struct {
+	Login  string        `json:"login"`
+	Config ServiceConfig `json:"config"`
+}

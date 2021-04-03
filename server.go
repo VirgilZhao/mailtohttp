@@ -2,7 +2,6 @@ package main
 
 import (
 	"embed"
-	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"github.com/VirgilZhao/mailtohttp/email"
@@ -22,6 +21,10 @@ var embedFiles embed.FS
 var receiveApp *email.EmailApp
 var idelApp *email.EmailApp
 
+const (
+	configFileName = "config.mtt"
+)
+
 func getFileSystem(useOs bool) http.FileSystem {
 	if useOs {
 		log.Println("using live mode")
@@ -37,14 +40,21 @@ func getFileSystem(useOs bool) http.FileSystem {
 
 func loginHandler(c echo.Context) error {
 	passwordCheck := c.Param("passText")
+	login := "fail"
 	if *password == passwordCheck {
-		return c.JSON(200, "ok")
+		login = "ok"
 	}
-	return c.JSON(200, "fail")
+	config := loadConfig()
+	return c.JSON(200, model.LoginResponse{
+		Login:  login,
+		Config: *config,
+	})
 }
 
 func startServiceHandler(c echo.Context) error {
-	config := model.ServiceConfig{}
+	config := model.ServiceConfig{
+		ContentPatterns: make([]model.ServiceContentPattern, 0),
+	}
 	if err := c.Bind(&config); err != nil {
 		return c.JSON(200, err.Error())
 	}
@@ -98,20 +108,52 @@ func startEmailLoop(config *model.ServiceConfig) {
 	select {}
 }
 
+func loadConfig() *model.ServiceConfig {
+	config := model.ServiceConfig{
+		ContentPatterns: make([]model.ServiceContentPattern, 0),
+	}
+	if !checkConfigExist() {
+		return &config
+	}
+	bytes, err := ioutil.ReadFile("config.mtt")
+	if err != nil {
+		log.Println(err)
+		return &config
+	}
+	jsonStr := utils.AesDecryptCBC(bytes, []byte(*encryptKey))
+	log.Println(string(jsonStr))
+	err = json.Unmarshal(jsonStr, &config)
+	if err != nil {
+		log.Println(err)
+		return &config
+	}
+	return &config
+}
+
 func saveConfig(config *model.ServiceConfig) error {
+	if checkConfigExist() {
+		os.Remove(configFileName)
+	}
 	bytes, err := json.Marshal(config)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
 	encryptBytes := utils.AesEncryptCBC(bytes, []byte(*encryptKey))
-	encryptStr := hex.EncodeToString(encryptBytes)
-	err = ioutil.WriteFile("config.mtt", []byte(encryptStr), 0666)
+	err = ioutil.WriteFile(configFileName, encryptBytes, 0666)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
 	return nil
+}
+
+func checkConfigExist() bool {
+	_, err := os.Stat(configFileName)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return true
 }
 
 var live = flag.Bool("live", false, "use live mode")

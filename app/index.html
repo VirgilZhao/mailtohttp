@@ -133,8 +133,11 @@
                 var url = '/api/password/' + this.passwordText
                 axios.get(url).then(function(resp){
                     console.log(resp)
-                    if(resp.data === "ok"){
-                        console.log("111")
+                    if(resp.data.login === "ok"){
+                        var config = resp.data.config
+                        self.emailSettings = config.emailSettings
+                        self.contentPatterns = config.contentPatterns
+                        self.callbackUrl = config.callbackUrl
                         self.configDivShow = true
                     }
                 });

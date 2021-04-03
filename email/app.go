@@ -32,25 +32,29 @@ func NewEmailApp(imapAddress string, imapPort int, email string, password string
 	}
 }
 
-func (ea *EmailApp) login() {
+func (ea *EmailApp) login() error {
 	log.Printf("Connecting to server ...")
 	c, err := client.DialTLS(fmt.Sprintf("%s:%v", ea.imapAddress, ea.imapPort), nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return err
 	}
 	ea.client = c
 	log.Println("Connected")
 
 	if err := c.Login(ea.email, ea.password); err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return err
 	}
 	log.Println("Logged in")
 
 	mbox, err := ea.client.Select("INBOX", false)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return err
 	}
 	ea.inbox = mbox
+	return nil
 }
 
 func (ea *EmailApp) StopEmailReceive() {
@@ -62,7 +66,9 @@ func (ea *EmailApp) StopIdle() {
 }
 
 func (ea *EmailApp) StartIdle(updateChan chan string) {
-	ea.login()
+	if err := ea.login(); err != nil {
+		return
+	}
 	defer ea.client.Logout()
 	idleClient := idle.NewClient(ea.client)
 	updates := make(chan client.Update)
@@ -84,7 +90,8 @@ func (ea *EmailApp) StartIdle(updateChan chan string) {
 			break
 		case err := <-done:
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
+				return
 			}
 			log.Println("Not idling anymore")
 			return
@@ -93,7 +100,9 @@ func (ea *EmailApp) StartIdle(updateChan chan string) {
 }
 
 func (ea *EmailApp) StartEmailReceive() {
-	ea.login()
+	if err := ea.login(); err != nil {
+		return
+	}
 	log.Println("listen messages")
 	for {
 		select {
@@ -107,7 +116,9 @@ func (ea *EmailApp) StartEmailReceive() {
 
 func (ea *EmailApp) getLatestMessages() {
 	if ea.client.Check() != nil {
-		ea.login()
+		if err := ea.login(); err != nil {
+			return
+		}
 	}
 	from := uint32(1)
 	to := ea.inbox.Messages
