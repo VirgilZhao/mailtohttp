@@ -20,6 +20,8 @@ import (
 var embedFiles embed.FS
 var receiveApp *email.EmailApp
 var idelApp *email.EmailApp
+var status = "stopped"
+var msgChan = make(chan string, 100)
 
 const (
 	configFileName = "config.mtt"
@@ -45,6 +47,7 @@ func loginHandler(c echo.Context) error {
 		login = "ok"
 	}
 	config := loadConfig()
+	sendMessage("status", status)
 	return c.JSON(200, model.LoginResponse{
 		Login:  login,
 		Config: *config,
@@ -64,48 +67,89 @@ func startServiceHandler(c echo.Context) error {
 }
 
 func stopServiceHandler(c echo.Context) error {
+	stopEmailLoop()
+	status = "stopped"
+	sendMessage("status", status)
 	return c.JSON(200, "ok")
 }
 
 var logSocket = websocket.Upgrader{}
-var msgChan chan string = make(chan string)
-var stopChan chan string = make(chan string)
+var conn *websocket.Conn
 
 func webSocketHandler(c echo.Context) error {
-	ws, err := logSocket.Upgrade(c.Response(), c.Request(), nil)
+	var err error
+	if conn != nil {
+		conn.Close()
+	}
+	conn, err = logSocket.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		panic(err)
 	}
-	defer ws.Close()
+	go messageLoop()
+	return nil
+}
+
+func messageLoop() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(err)
+			return
+		}
+	}()
 	for {
 		select {
 		case msg := <-msgChan:
-			err := ws.WriteMessage(websocket.TextMessage, []byte(msg))
+			err := conn.WriteMessage(websocket.TextMessage, []byte(msg))
 			if err != nil {
 				log.Println(err)
+				return
 			}
-			break
-		case <-stopChan:
-			log.Println("stop socket")
-			return nil
 			break
 		}
 	}
-	return nil
+}
+
+func sendMessage(ctype, data string) {
+	msg := model.SocketMessage{
+		MsgType: ctype,
+		Data:    data,
+	}
+	bytes, err := json.Marshal(&msg)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	msgChan <- string(bytes)
 }
 
 func startEmailLoop(config *model.ServiceConfig) {
 	if receiveApp != nil {
-		receiveApp.StopEmailReceive()
+		receiveApp.StopLoop()
+		receiveApp = nil
 	}
 	if idelApp != nil {
-		idelApp.StopIdle()
+		idelApp.StopLoop()
+		idelApp = nil
 	}
-	receiveApp = email.NewEmailApp(config.EmailSettings.ImapAddress, config.EmailSettings.ImapPort, config.EmailSettings.Email, config.EmailSettings.Password, config.EmailSettings.Folder, &msgChan)
-	idelApp = email.NewEmailApp(config.EmailSettings.ImapAddress, config.EmailSettings.ImapPort, config.EmailSettings.Email, config.EmailSettings.Password, config.EmailSettings.Folder, &msgChan)
+	receiveApp = email.NewEmailApp(config)
+	idelApp = email.NewEmailApp(config)
 	go receiveApp.StartEmailReceive()
 	go idelApp.StartIdle(receiveApp.UpdateChan)
+	receiveApp.UpdateChan <- ""
+	status = "running"
+	sendMessage("status", status)
 	select {}
+}
+
+func stopEmailLoop() {
+	if receiveApp != nil {
+		receiveApp.StopLoop()
+		receiveApp = nil
+	}
+	if idelApp != nil {
+		idelApp.StopLoop()
+		idelApp = nil
+	}
 }
 
 func loadConfig() *model.ServiceConfig {

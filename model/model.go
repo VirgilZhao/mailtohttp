@@ -23,3 +23,13 @@ type LoginResponse struct {
 	Login  string        `json:"login"`
 	Config ServiceConfig `json:"config"`
 }
+
+type SocketMessage struct {
+	MsgType string `json:"msg_type"`
+	Data    string `json:"data"`
+}
+
+type Param struct {
+	Name  string   `json:"name"`
+	Value []string `json:"value"`
+}

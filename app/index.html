@@ -12,6 +12,19 @@
             text-align: center;
             line-height: 60px;
         }
+        .el-aside {
+            background-color: #D3DCE6;
+            color: #333;
+            text-align: center;
+            line-height: 30px;
+        }
+        ul {
+            padding:0;
+            margin:0;
+        }
+        li {
+            list-style:none;
+        }
     </style>
 </head>
 <body>
@@ -20,8 +33,9 @@
             <el-header>
                 <span style="font-size: 32px;font-weight: bold;">Mail To Http Configuration</span>
             </el-header>
+            <el-container>
             <el-main>
-                <div v-if="!configDivShow" id="passwdidv">
+                <div v-if="!passwordInput" id="passwdidv">
                     <el-form :inline="true" style="text-align: center;">
                         <el-form-item label="Enter Password">
                             <el-input v-model="passwordText" show-password></el-input>
@@ -31,8 +45,20 @@
                         </el-form-item>
                     </el-form>
                 </div>
-                <div v-else id="configDiv" style="width:600px;margin:0 auto;">
-                    <el-card>
+                <div v-else>
+                    <el-row>
+                        <el-col :span="16">Service Status: <span v-if="status==='stopped'" style="color:red;">{{status}}</span><span v-if="status==='running'" style="color:green">{{status}}</span></el-col>
+                        <el-col :span="4" style="text-align:right;"><el-button type="primary" @click="configDivShow=true">Config Service</el-button></el-col>
+                        <el-col :span="4" style="text-align:right;"><el-button type="danger" @click="serviceAction">{{btnServiceTest}}</el-button></el-col>
+                    </el-row>
+                </div>
+                <div v-show="configDivShow" id="configDiv" style="width:600px;margin:0 auto;">
+                    <el-steps :active="active" finish-status="success">
+                        <el-step title="Email Settings"></el-step>
+                        <el-step title="Content Patterns"></el-step>
+                        <el-step title="Http Settings"></el-step>
+                    </el-steps>
+                    <el-card v-show="showEmail">
                         <div slot="header">
                             <span>Email Settings</span>
                         </div>
@@ -41,7 +67,7 @@
                                 <el-input v-model="emailSettings.imapAddress" placeholder="imap.gmail.com"></el-input>
                             </el-form-item>
                             <el-form-item label="IMAP Port">
-                                <el-input v-model="emailSettings.imapPort" placeholder="993"></el-input>
+                                <el-input type="number" v-model.number="emailSettings.imapPort" placeholder="0"></el-input>
                             </el-form-item>
                             <el-form-item label="Email">
                                 <el-input v-model="emailSettings.email" placeholder="test@test.com"></el-input>
@@ -53,9 +79,8 @@
                                 <el-input v-model="emailSettings.folder"></el-input>
                             </el-form-item>
                         </el-form>
-                    </el-card>
-                    <div style="width:100%;height:10px;"></div>
-                    <el-card>
+                    </el-card> 
+                    <el-card v-show="showContent">
                         <div slot="header">
                             <span>Content Pattern</span>
                             <el-button style="float: right; padding: 3px 0" type="text" @click="addPattern">Add Pattern</el-button>
@@ -76,8 +101,7 @@
                             </el-card>
                         </template>
                     </el-card>
-                    <div style="width:100%;height:10px;"></div>
-                    <el-card>
+                    <el-card v-show="showHttp">
                         <div slot="header">
                             <span>HTTP Settings</span>
                         </div>
@@ -88,16 +112,33 @@
                         </el-form>
                     </el-card>
                     <div style="width:100%;height:20px;"></div>
-                    <el-row>
+                    <el-row v-if="active === 1">
                         <el-col :span="12">
-                            <el-button type="primary" @click="startService">Start Service</el-button>
+                            <el-button type="primary" @click="showPre">Pre Step</el-button>
                         </el-col>
-                        <el-col :span="12" style="text-align: right;">
-                            <el-button type="danger">Stop Service</el-button>
+                         <el-col :span="12" style="text-align: right;">
+                            <el-button type="primary" @click="showNext">Next Step</el-button>
+                        </el-col>
+                    </el-row>
+                    <el-row v-if="active === 0">
+                        <el-col :span="12">
+                            <!--<el-button type="primary" @click="showPre">Pre Step</el-button>-->&nbsp;
+                        </el-col>
+                         <el-col :span="12" style="text-align: right;">
+                            <el-button type="primary" @click="showNext">Next Step</el-button>
+                        </el-col>
+                    </el-row>
+                    <el-row v-if="active === 2">
+                        <el-col :span="12">
+                            <el-button type="primary" @click="showPre">Pre Step</el-button>
+                        </el-col>
+                         <el-col :span="12" style="text-align: right;">
+                            <el-button type="primary" @click="configDivShow = false">Done</el-button>
                         </el-col>
                     </el-row>
                 </div>
             </el-main>
+            </el-contianer>
         </el-container>
     </div>
 </body>
@@ -112,6 +153,7 @@
         data: function() {
             return { 
                 passwordText: '' ,
+                passwordInput: false,
                 configDivShow: false,
                 emailSettings: {
                     imapAddress: '',
@@ -122,12 +164,55 @@
                 },
                 contentPatterns: [],
                 callbackUrl: '',
-                status: 'stopped'
+                status: 'stopped',
+                websocket: null,
+                showEmail: false,
+                showContent: false,
+                showHttp: false,
+                active: 0,
+                showMap: {
+                    0: 'email',
+                    1: 'content',
+                    2: 'http'
+                }
             }
         },
         computed: {
+            btnServiceTest: function(){
+                if(this.status === 'stopped') {
+                    return 'Start Service'
+                }
+                return 'Stop Service'
+            }
+        },
+        created() {
+            this.initWebSocket()
         },
         methods: {
+            showPre() {
+                if(this.active > 0) {
+                    this.active -= 1
+                }
+                this.show(this.showMap[this.active])
+            },
+            showNext() {
+                if(this.active < 2) {
+                    this.active += 1
+                }
+                this.show(this.showMap[this.active])
+            },
+            show(val) {
+                this.showEmail = false
+                this.showContent = false
+                this.showHttp = false
+                if(val === 'email') {
+                    this.showEmail = true
+                } else if (val === 'content') {
+                    this.showContent = true 
+                } else if (val === 'http') {
+                    this.showHttp = true
+                }
+            },
             login() {
                 var self = this
                 var url = '/api/password/' + this.passwordText
@@ -138,7 +223,13 @@
                         self.emailSettings = config.emailSettings
                         self.contentPatterns = config.contentPatterns
                         self.callbackUrl = config.callbackUrl
-                        self.configDivShow = true
+                        self.passwordInput = true
+                        self.show('email')
+                        var data = {
+                            msg_type: 'status',
+                            data: ''
+                        }
+                        self.wesocketSend(JSON.stringify(data))
                     }
                 });
             },
@@ -151,6 +242,13 @@
             deletePattern(index) {
                 this.contentPatterns.splice(index, 1)
             },
+            serviceAction() {
+                if(this.status === 'stopped') {
+                    this.startService()
+                } else {
+                    this.stopService()
+                }
+            },
             startService(){
                 var body = {
                     emailSettings: this.emailSettings,
@@ -160,6 +258,40 @@
                 axios.post('/api/service/start', body).then(function(resp){
                     console.log(resp)
                 })
+            },
+            stopService() {
+                axios.get('/api/service/stop').then(function(resp){
+                    console.log(resp)
+                })
+            },
+            initWebSocket() {
+                var url = 'ws://' + window.location.host + '/ws'
+                this.websocket = new WebSocket(url)
+                this.websocket.onmessage = this.websocketOnMessage
+                this.websocket.onopen = this.websocketOnOpen
+                this.websocket.onerror = this.websocketOnError
+                this.websocket.onclose = this.websocketClose
+            },
+            websocketOnOpen() {
+                console.log('websocket open')
+            },
+            websocketOnError() {
+                console.log('websocket error')
+                this.initWebSocket()
+            },
+            websocketOnMessage(e) {
+                console.log('websocket message', e.data)
+                let data = JSON.parse(e.data)
+                console.log(data.msg_type)
+                if(data.msg_type === 'status') {
+                    this.status = data.data
+                }
+            },
+            wesocketSend(data) {
+                this.websocket.send(data)
+            },
+            websocketClose(e) {
+                console.log('websocket close', e)
             }
         },
     })
