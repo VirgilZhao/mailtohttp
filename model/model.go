@@ -33,3 +33,13 @@ type Param struct {
 	Name  string   `json:"name"`
 	Value []string `json:"value"`
 }
+
+type HttpSender struct {
+	Params    []Param `json:"params"`
+	Timestamp int64   `json:"timestamp"`
+	NextRun   int64   `json:"next_run"`
+}
+
+type HttpBody struct {
+	Params []Param `json:"params"`
+}

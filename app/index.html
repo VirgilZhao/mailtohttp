@@ -133,9 +133,12 @@
                             <el-button type="primary" @click="showPre">Pre Step</el-button>
                         </el-col>
                          <el-col :span="12" style="text-align: right;">
-                            <el-button type="primary" @click="configDivShow = false">Done</el-button>
+                            <el-button type="primary" @click="saveConfig">Done</el-button>
                         </el-col>
                     </el-row>
+                </div>
+                <div id="logDiv">
+                    <div v-for="log in logs">{{log}}</div>
                 </div>
             </el-main>
             </el-contianer>
@@ -174,7 +177,8 @@
                     0: 'email',
                     1: 'content',
                     2: 'http'
-                }
+                },
+                logs: []
             }
         },
         computed: {
@@ -242,6 +246,24 @@
             deletePattern(index) {
                 this.contentPatterns.splice(index, 1)
             },
+            saveConfig() {
+                this.configDivShow = false
+                var body = {
+                    emailSettings: this.emailSettings,
+                    contentPatterns: this.contentPatterns,
+                    CallbackUrl: this.callbackUrl
+                }
+                var self = this
+                axios.post('/api/config', body).then(function(resp){
+                    console.log(resp)
+                    if(resp.status == 200) {
+                        self.$message({
+                            message: 'Configuration Saved!',
+                            type: 'success'
+                        })
+                    }
+                })
+            },
             serviceAction() {
                 if(this.status === 'stopped') {
                     this.startService()
@@ -250,12 +272,7 @@
                 }
             },
             startService(){
-                var body = {
-                    emailSettings: this.emailSettings,
-                    contentPatterns: this.contentPatterns,
-                    CallbackUrl: this.callbackUrl
-                }
-                axios.post('/api/service/start', body).then(function(resp){
+                axios.get('/api/service/start').then(function(resp){
                     console.log(resp)
                 })
             },
@@ -285,6 +302,11 @@
                 console.log(data.msg_type)
                 if(data.msg_type === 'status') {
                     this.status = data.data
+                } else {
+                    this.logs.push(data.data)
+                    if(this.logs.length > 100) {
+                        this.logs.shift()
+                    }
                 }
             },
             wesocketSend(data) {

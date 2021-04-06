@@ -54,15 +54,20 @@ func loginHandler(c echo.Context) error {
 	})
 }
 
-func startServiceHandler(c echo.Context) error {
+func saveConfigFile(c echo.Context) error {
 	config := model.ServiceConfig{
 		ContentPatterns: make([]model.ServiceContentPattern, 0),
 	}
 	if err := c.Bind(&config); err != nil {
 		return c.JSON(200, err.Error())
 	}
-	go startEmailLoop(&config)
 	saveConfig(&config)
+	return c.JSON(200, "ok")
+}
+
+func startServiceHandler(c echo.Context) error {
+	config := loadConfig()
+	go startEmailLoop(config)
 	return c.JSON(200, "ok")
 }
 
@@ -131,9 +136,10 @@ func startEmailLoop(config *model.ServiceConfig) {
 		idelApp.StopLoop()
 		idelApp = nil
 	}
-	receiveApp = email.NewEmailApp(config)
-	idelApp = email.NewEmailApp(config)
+	receiveApp = email.NewEmailApp("receive app", config, msgChan)
+	idelApp = email.NewEmailApp("idle app", config, msgChan)
 	go receiveApp.StartEmailReceive()
+	go receiveApp.StartHttpLoop()
 	go idelApp.StartIdle(receiveApp.UpdateChan)
 	receiveApp.UpdateChan <- ""
 	status = "running"
@@ -212,7 +218,8 @@ func main() {
 	assetHandler := http.FileServer(getFileSystem(*live))
 	e.GET("/", echo.WrapHandler(assetHandler))
 	e.GET("/api/password/:passText", loginHandler)
-	e.POST("/api/service/start", startServiceHandler)
+	e.POST("/api/config", saveConfigFile)
+	e.GET("/api/service/start", startServiceHandler)
 	e.GET("/api/service/stop", stopServiceHandler)
 	e.GET("/ws", webSocketHandler)
 	e.GET("/static/*", echo.WrapHandler(http.StripPrefix("/static/", assetHandler)))
