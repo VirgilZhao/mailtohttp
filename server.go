@@ -213,6 +213,9 @@ var encryptKey = flag.String("encryptKey", "TISISVIRGLCRATDP", "encrypt key leng
 
 func main() {
 	flag.Parse()
+	if len(*encryptKey) != 16 {
+		panic("encrpytKey must be 16 characters")
+	}
 	e := echo.New()
 	log.Printf("flag set %v %v %v\n", *live, *port, *password)
 	assetHandler := http.FileServer(getFileSystem(*live))
