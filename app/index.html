@@ -69,17 +69,28 @@
                             <el-form-item label="IMAP Port">
                                 <el-input type="number" v-model.number="emailSettings.imapPort" placeholder="0"></el-input>
                             </el-form-item>
-                            <el-form-item label="Email">
-                                <el-input v-model="emailSettings.email" placeholder="test@test.com"></el-input>
-                            </el-form-item>
-                            <el-form-item label="Password">
-                                <el-input v-model="emailSettings.password" show-password></el-input>
-                            </el-form-item>
                             <el-form-item label="Folder">
                                 <el-input v-model="emailSettings.folder"></el-input>
                             </el-form-item>
+                            <el-form-item label="Email Account">
+                                <el-button type="primary" @click="dialogVisible = true">Set Email Account</el-button>
+                            </el-form-item>
                         </el-form>
                     </el-card> 
+                    <el-dialog title="Email Account" :visible.sync="dialogVisible">
+                        <el-form>
+                            <el-form-item label="Email">
+                                <el-input v-model="emailPwd.email" placeholder="test@test.com"></el-input>
+                            </el-form-item>
+                            <el-form-item label="Password">
+                                <el-input v-model="emailPwd.password" show-password></el-input>
+                            </el-form-item>
+                        </el-form>
+                        <div slot="footer" class="dialog-footer">
+                            <el-button @click="dialogVisible = false">取 消</el-button>
+                            <el-button type="primary" @click="setEmailAccount">确 定</el-button>
+                        </div>
+                    </el-dialog>
                     <el-card v-show="showContent">
                         <div slot="header">
                             <span>Content Pattern</span>
@@ -178,7 +189,12 @@
                     1: 'content',
                     2: 'http'
                 },
-                logs: []
+                logs: [],
+                dialogVisible: false,
+                emailPwd: {
+                    email: '',
+                    password: ''
+                }
             }
         },
         computed: {
@@ -245,6 +261,19 @@
             },
             deletePattern(index) {
                 this.contentPatterns.splice(index, 1)
+            },
+            setEmailAccount() {
+                this.dialogVisible = false
+                var self = this
+                axios.post('/api/ep_config', this.emailPwd).then(function(resp){
+                    console.log(resp)
+                    if(resp.status == 200) {
+                        self.$message({
+                            message: 'Email Account Saved!',
+                            type: 'success'
+                        })
+                    }
+                })
             },
             saveConfig() {
                 this.configDivShow = false

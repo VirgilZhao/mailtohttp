@@ -43,3 +43,8 @@ type HttpSender struct {
 type HttpBody struct {
 	Params []Param `json:"params"`
 }
+
+type EmailPwdBody struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}

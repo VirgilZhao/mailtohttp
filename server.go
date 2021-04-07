@@ -25,6 +25,7 @@ var msgChan = make(chan string, 100)
 
 const (
 	configFileName = "config.mtt"
+	configEPName   = "ep.mtt"
 )
 
 func getFileSystem(useOs bool) http.FileSystem {
@@ -65,8 +66,20 @@ func saveConfigFile(c echo.Context) error {
 	return c.JSON(200, "ok")
 }
 
+func saveConfigEPFile(c echo.Context) error {
+	config := model.EmailPwdBody{}
+	if err := c.Bind(&config); err != nil {
+		return c.JSON(200, err.Error())
+	}
+	saveEmailPwd(&config)
+	return c.JSON(200, "ok")
+}
+
 func startServiceHandler(c echo.Context) error {
 	config := loadConfig()
+	epConfig := loadEPConfig()
+	config.EmailSettings.Email = epConfig.Email
+	config.EmailSettings.Password = epConfig.Password
 	go startEmailLoop(config)
 	return c.JSON(200, "ok")
 }
@@ -162,10 +175,10 @@ func loadConfig() *model.ServiceConfig {
 	config := model.ServiceConfig{
 		ContentPatterns: make([]model.ServiceContentPattern, 0),
 	}
-	if !checkConfigExist() {
+	if !checkConfigExist(configFileName) {
 		return &config
 	}
-	bytes, err := ioutil.ReadFile("config.mtt")
+	bytes, err := ioutil.ReadFile(configFileName)
 	if err != nil {
 		log.Println(err)
 		return &config
@@ -181,7 +194,7 @@ func loadConfig() *model.ServiceConfig {
 }
 
 func saveConfig(config *model.ServiceConfig) error {
-	if checkConfigExist() {
+	if checkConfigExist(configFileName) {
 		os.Remove(configFileName)
 	}
 	bytes, err := json.Marshal(config)
@@ -198,8 +211,46 @@ func saveConfig(config *model.ServiceConfig) error {
 	return nil
 }
 
-func checkConfigExist() bool {
-	_, err := os.Stat(configFileName)
+func loadEPConfig() *model.EmailPwdBody {
+	config := model.EmailPwdBody{}
+	if !checkConfigExist(configEPName) {
+		return &config
+	}
+	bytes, err := ioutil.ReadFile(configEPName)
+	if err != nil {
+		log.Println(err)
+		return &config
+	}
+	jsonStr := utils.AesDecryptCBC(bytes, []byte(*encryptKey))
+	log.Println(string(jsonStr))
+	err = json.Unmarshal(jsonStr, &config)
+	if err != nil {
+		log.Println(err)
+		return &config
+	}
+	return &config
+}
+
+func saveEmailPwd(body *model.EmailPwdBody) error {
+	if checkConfigExist(configEPName) {
+		os.Remove(configEPName)
+	}
+	bytes, err := json.Marshal(body)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	encryptBytes := utils.AesEncryptCBC(bytes, []byte(*encryptKey))
+	err = ioutil.WriteFile(configEPName, encryptBytes, 0666)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	return nil
+}
+
+func checkConfigExist(fileName string) bool {
+	_, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
 		return false
 	}
@@ -222,6 +273,7 @@ func main() {
 	e.GET("/", echo.WrapHandler(assetHandler))
 	e.GET("/api/password/:passText", loginHandler)
 	e.POST("/api/config", saveConfigFile)
+	e.POST("/api/ep_config", saveConfigEPFile)
 	e.GET("/api/service/start", startServiceHandler)
 	e.GET("/api/service/stop", stopServiceHandler)
 	e.GET("/ws", webSocketHandler)
