@@ -11,6 +11,7 @@ type EmailSettings struct {
 type ServiceContentPattern struct {
 	Param string `json:"param"`
 	Regex string `json:"regex"`
+	Require bool `json:"require"`
 }
 
 type ServiceConfig struct {

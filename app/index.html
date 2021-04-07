@@ -108,6 +108,9 @@
                                     <el-form-item label="Regex">
                                         <el-input v-model="item.regex"></el-input>
                                     </el-form-item>
+                                    <el-form-item label="Require">
+                                        <el-switch v-model="item.require"></el-switch>
+                                    </el-form-item>
                                 </el-form>
                             </el-card>
                         </template>
@@ -256,7 +259,8 @@
             addPattern() {
                 this.contentPatterns.push({
                     param: '',
-                    regex:''
+                    regex:'',
+                    require: false
                 })
             },
             deletePattern(index) {

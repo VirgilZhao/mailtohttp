@@ -163,8 +163,8 @@ func (ea *EmailApp) getLatestMessages() {
 	}
 	from := uint32(1)
 	to := ea.inbox.Messages
-	if ea.inbox.Messages > 5 {
-		from = ea.inbox.Messages - 5
+	if ea.inbox.Messages > 10 {
+		from = ea.inbox.Messages - 10
 	}
 	seqset := new(imap.SeqSet)
 	seqset.AddRange(from, to)
@@ -232,6 +232,9 @@ func (ea *EmailApp) decodeEmail(message string) bool {
 			ea.sendMessage(err.Error())
 		}
 		matches := valReg.FindAllString(message, -1)
+		if content.Require && len(matches) == 0 {
+			return true
+		}
 		vals := make([]string, 0)
 		for _, m := range matches {
 			vals = append(vals, m)
