@@ -101,6 +101,7 @@ func (ea *EmailApp) StartIdle(updateChan chan string) {
 	}
 	defer ea.client.Logout()
 	idleClient := idle.NewClient(ea.client)
+	idleClient.LogoutTimeout = 1 * time.Minute
 	updates := make(chan client.Update)
 	ea.client.Updates = updates
 	done := make(chan error, 1)
@@ -119,12 +120,13 @@ func (ea *EmailApp) StartIdle(updateChan chan string) {
 			}
 			break
 		case err := <-done:
+			ea.sendMessage("Not idling anymore")
 			if err != nil {
 				ea.sendMessage(err.Error())
-				return
+				// return
 			}
-			ea.sendMessage("Not idling anymore")
-			return
+			// return
+			break
 		case <-ea.stopChan:
 			ea.client.Logout()
 			ea.sendMessage("loop idle quit")
@@ -135,6 +137,7 @@ func (ea *EmailApp) StartIdle(updateChan chan string) {
 
 func (ea *EmailApp) StartEmailReceive() {
 	if err := ea.login(); err != nil {
+		ea.sendMessage(err.Error())
 		return
 	}
 	for {
@@ -158,6 +161,7 @@ func (ea *EmailApp) StopLoop() {
 func (ea *EmailApp) getLatestMessages() {
 	if ea.client.Check() != nil {
 		if err := ea.login(); err != nil {
+			ea.sendMessage(err.Error())
 			return
 		}
 	}
@@ -173,10 +177,10 @@ func (ea *EmailApp) getLatestMessages() {
 	section := &imap.BodySectionName{}
 
 	messages := make(chan *imap.Message, 10)
-	err := ea.client.Fetch(seqset, []imap.FetchItem{section.FetchItem()}, messages)
-	if err != nil {
-		ea.sendMessage(err.Error())
-	}
+	done := make(chan error, 1)
+	go func() {
+		done <- ea.client.Fetch(seqset, []imap.FetchItem{section.FetchItem()}, messages)
+	}()
 	for msg := range messages {
 		r := msg.GetBody(section)
 		if r == nil {
@@ -220,6 +224,9 @@ func (ea *EmailApp) getLatestMessages() {
 				break
 			}
 		}
+	}
+	if err := <-done; err != nil {
+		ea.sendMessage(err.Error())
 	}
 	ea.sendMessage("done")
 }
