@@ -123,9 +123,10 @@ func (ea *EmailApp) StartIdle(updateChan chan string) {
 			ea.sendMessage("Not idling anymore")
 			if err != nil {
 				ea.sendMessage(err.Error())
-				// return
 			}
-			// return
+			go func() {
+				done <- idleClient.IdleWithFallback(nil, 0)
+			}()
 			break
 		case <-ea.stopChan:
 			ea.client.Logout()
