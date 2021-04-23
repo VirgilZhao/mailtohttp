@@ -95,7 +95,7 @@ func (ea *EmailApp) login() error {
 	return nil
 }
 
-func (ea *EmailApp) StartIdle(updateChan chan string) {
+func (ea *EmailApp) StartIdle(updateChan chan string)(stopChan chan string) {
 	if err := ea.login(); err != nil {
 		return
 	}
@@ -124,10 +124,8 @@ func (ea *EmailApp) StartIdle(updateChan chan string) {
 			if err != nil {
 				ea.sendMessage(err.Error())
 			}
-			go func() {
-				done <- idleClient.IdleWithFallback(nil, 0)
-			}()
-			break
+			stopChan <- ""
+			return
 		case <-ea.stopChan:
 			ea.client.Logout()
 			ea.sendMessage("loop idle quit")

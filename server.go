@@ -153,7 +153,14 @@ func startEmailLoop(config *model.ServiceConfig) {
 	idelApp = email.NewEmailApp("idle app", config, msgChan)
 	go receiveApp.StartEmailReceive()
 	go receiveApp.StartHttpLoop()
-	go idelApp.StartIdle(receiveApp.UpdateChan)
+	go func() {
+		for {
+			select {
+			case <- idelApp.StartIdle(receiveApp.UpdateChan):
+				break
+			}
+		}
+	}()
 	receiveApp.UpdateChan <- ""
 	status = "running"
 	sendMessage("status", status)
