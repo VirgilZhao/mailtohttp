@@ -170,7 +170,7 @@ func startEmailLoop(config *model.ServiceConfig) {
 			}
 		}
 	}()
-	// receiveApp.UpdateChan <- ""
+	receiveApp.UpdateChan <- ""
 	status = "running"
 	sendMessage("status", status)
 	select {}
