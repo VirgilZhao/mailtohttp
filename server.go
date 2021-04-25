@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"github.com/VirgilZhao/mailtohttp/email"
+	"github.com/VirgilZhao/mailtohttp/emailv2"
 	"github.com/VirgilZhao/mailtohttp/model"
 	"github.com/VirgilZhao/mailtohttp/utils"
 	"github.com/gorilla/websocket"
@@ -22,6 +23,7 @@ var receiveApp *email.EmailApp
 var idelApp *email.EmailApp
 var status = "stopped"
 var msgChan = make(chan string, 100)
+var emailApp *emailv2.EmailApp
 
 const (
 	configFileName = "config.mtt"
@@ -80,12 +82,19 @@ func startServiceHandler(c echo.Context) error {
 	epConfig := loadEPConfig()
 	config.EmailSettings.Email = epConfig.Email
 	config.EmailSettings.Password = epConfig.Password
-	go startEmailLoop(config)
+	// go startEmailLoop(config)
+	emailApp = emailv2.NewEmailApp(config, msgChan)
+	go emailApp.Start()
+	status = "running"
+	sendMessage("status", status)
 	return c.JSON(200, "ok")
 }
 
 func stopServiceHandler(c echo.Context) error {
-	stopEmailLoop()
+	// stopEmailLoop()
+	if emailApp != nil {
+		emailApp.Stop()
+	}
 	status = "stopped"
 	sendMessage("status", status)
 	return c.JSON(200, "ok")
@@ -161,8 +170,8 @@ func startEmailLoop(config *model.ServiceConfig) {
 		for {
 			sendMessage("message", "wait idle app")
 			select {
-			case <- done:
-				sendMessage("message","reconnect idle")
+			case <-done:
+				sendMessage("message", "reconnect idle")
 				go func() {
 					done <- idelApp.StartIdle(receiveApp.UpdateChan)
 				}()
