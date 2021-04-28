@@ -53,6 +53,7 @@ func (ea *EmailApp) sendMessage(msgType string, text string) {
 func (ea *EmailApp) login() error {
 	ea.sendMessage("login", "Connecting to server ...")
 	if ea.client != nil {
+		ea.sendMessage("login", "close old client")
 		ea.client.Close()
 	}
 	c, err := client.DialTLS(fmt.Sprintf("%s:%v", ea.config.EmailSettings.ImapAddress, ea.config.EmailSettings.ImapPort), nil)
@@ -267,7 +268,9 @@ func (ea *EmailApp) Start() error {
 		ea.sendMessage("start", "idling now")
 		update, err := ea.waitMailUpdate()
 		if err != nil {
-			if ea.client.Check() != nil {
+			ea.sendMessage("start", "wait mail update err:"+err.Error())
+			if err := ea.client.Check(); err != nil {
+				ea.sendMessage("start", "check err:"+err.Error())
 				ea.login()
 			}
 			continue
