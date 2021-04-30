@@ -22,9 +22,10 @@ type ReceiveApp struct {
 func NewReceiveApp(config *model.ServiceConfig, msgChan chan string) *ReceiveApp {
 	return &ReceiveApp{
 		App: App{
-			Name:    "ReceiveApp",
-			config:  config,
-			msgChan: msgChan,
+			Name:          "ReceiveApp",
+			config:        config,
+			msgChan:       msgChan,
+			stopLoginChan: make(chan string, 1),
 		},
 		stopChan: make(chan string),
 	}
@@ -45,7 +46,13 @@ func (ea *ReceiveApp) Start(updateMsgChan chan string) {
 }
 
 func (ea *ReceiveApp) Stop() {
-	ea.stopChan <- ""
+	if ea.IsInLoginLoop {
+		ea.sendMessage("Stop", "stop login")
+		ea.stopLoginChan <- ""
+	} else {
+		ea.sendMessage("Stop", "stop receive")
+		ea.stopChan <- ""
+	}
 }
 
 func (ea *ReceiveApp) getLatestMessages(count uint32) error {

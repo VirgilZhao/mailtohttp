@@ -18,9 +18,10 @@ type IdleApp struct {
 func NewIdleApp(config *model.ServiceConfig, msgChan chan string) *IdleApp {
 	return &IdleApp{
 		App: App{
-			Name:    "IdleApp",
-			config:  config,
-			msgChan: msgChan,
+			Name:          "IdleApp",
+			config:        config,
+			msgChan:       msgChan,
+			stopLoginChan: make(chan string, 1),
 		},
 		stopChan:     make(chan string, 1),
 		MessageCount: 0,
@@ -29,11 +30,14 @@ func NewIdleApp(config *model.ServiceConfig, msgChan chan string) *IdleApp {
 
 func (ia *IdleApp) Start(updateNotifyChan chan string) {
 START:
-	ia.login()
+	if err := ia.login(); err != nil {
+		ia.sendMessage("Start", "login error:"+err.Error())
+		return
+	}
 	defer ia.client.Logout()
 	mbox, err := ia.client.Select(ia.config.EmailSettings.Folder, false)
 	if err != nil {
-		ia.sendMessage("GetLatestMessages", err.Error())
+		ia.sendMessage("Start", err.Error())
 		return
 	}
 	ia.sendMessage("Start", fmt.Sprintf("mailbox %s with flags %v", mbox.Name, mbox.Flags))
@@ -74,5 +78,11 @@ START:
 }
 
 func (ia *IdleApp) Stop() {
-	ia.stopChan <- ""
+	if ia.IsInLoginLoop {
+		ia.sendMessage("Stop", "stop login")
+		ia.stopLoginChan <- ""
+	} else {
+		ia.sendMessage("stop", "stop idle")
+		ia.stopChan <- ""
+	}
 }

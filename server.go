@@ -208,7 +208,7 @@ func loadEPConfig() *model.EmailPwdBody {
 		return &config
 	}
 	jsonStr := utils.AesDecryptCBC(bytes, []byte(*encryptKey))
-	log.Println(string(jsonStr))
+	log.Println("load EP config success!")
 	err = json.Unmarshal(jsonStr, &config)
 	if err != nil {
 		log.Println(err)
