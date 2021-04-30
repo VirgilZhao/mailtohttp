@@ -4,8 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"flag"
-	"github.com/VirgilZhao/mailtohttp/email"
-	"github.com/VirgilZhao/mailtohttp/emailv2"
+	v2 "github.com/VirgilZhao/mailtohttp/email/v2"
 	"github.com/VirgilZhao/mailtohttp/model"
 	"github.com/VirgilZhao/mailtohttp/utils"
 	"github.com/gorilla/websocket"
@@ -19,11 +18,11 @@ import (
 
 //go:embed app
 var embedFiles embed.FS
-var receiveApp *email.EmailApp
-var idelApp *email.EmailApp
 var status = "stopped"
 var msgChan = make(chan string, 100)
-var emailApp *emailv2.EmailApp
+var updateNotifyChan = make(chan string, 10)
+var idleApp *v2.IdleApp
+var receiveApp *v2.ReceiveApp
 
 const (
 	configFileName = "config.mtt"
@@ -83,8 +82,14 @@ func startServiceHandler(c echo.Context) error {
 	config.EmailSettings.Email = epConfig.Email
 	config.EmailSettings.Password = epConfig.Password
 	// go startEmailLoop(config)
-	emailApp = emailv2.NewEmailApp(config, msgChan)
-	go emailApp.Start()
+	if idleApp == nil {
+		idleApp = v2.NewIdleApp(config, msgChan)
+	}
+	go idleApp.Start(updateNotifyChan)
+	if receiveApp == nil {
+		receiveApp = v2.NewReceiveApp(config, msgChan)
+	}
+	go receiveApp.Start(updateNotifyChan)
 	status = "running"
 	sendMessage("status", status)
 	return c.JSON(200, "ok")
@@ -92,8 +97,11 @@ func startServiceHandler(c echo.Context) error {
 
 func stopServiceHandler(c echo.Context) error {
 	// stopEmailLoop()
-	if emailApp != nil {
-		emailApp.Stop()
+	if idleApp != nil {
+		idleApp.Stop()
+	}
+	if receiveApp != nil {
+		receiveApp.Stop()
 	}
 	status = "stopped"
 	sendMessage("status", status)
@@ -147,53 +155,6 @@ func sendMessage(ctype, data string) {
 		return
 	}
 	msgChan <- string(bytes)
-}
-
-func startEmailLoop(config *model.ServiceConfig) {
-	if receiveApp != nil {
-		receiveApp.StopLoop()
-		receiveApp = nil
-	}
-	if idelApp != nil {
-		idelApp.StopLoop()
-		idelApp = nil
-	}
-	receiveApp = email.NewEmailApp("receive app", config, msgChan)
-	idelApp = email.NewEmailApp("idle app", config, msgChan)
-	go receiveApp.StartEmailReceive()
-	go receiveApp.StartHttpLoop()
-	go func() {
-		done := make(chan error, 1)
-		go func() {
-			done <- idelApp.StartIdle(receiveApp.UpdateChan)
-		}()
-		for {
-			sendMessage("message", "wait idle app")
-			select {
-			case <-done:
-				sendMessage("message", "reconnect idle")
-				go func() {
-					done <- idelApp.StartIdle(receiveApp.UpdateChan)
-				}()
-				break
-			}
-		}
-	}()
-	receiveApp.UpdateChan <- ""
-	status = "running"
-	sendMessage("status", status)
-	select {}
-}
-
-func stopEmailLoop() {
-	if receiveApp != nil {
-		receiveApp.StopLoop()
-		receiveApp = nil
-	}
-	if idelApp != nil {
-		idelApp.StopLoop()
-		idelApp = nil
-	}
 }
 
 func loadConfig() *model.ServiceConfig {
